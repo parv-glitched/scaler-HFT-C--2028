@@ -1,14 +1,13 @@
-// Unit tests for the three order books. Every test runs against A, B and C.
-// Build and run with: make test
+// Unit tests. Every test runs against A, B and C. Build and run: make test
 
 #include <cstdio>
 #include <string>
 
-#include "array_book.hpp"
-#include "heap_book.hpp"
-#include "map_book.hpp"
-#include "reference_book.hpp"
-#include "workload.hpp"
+#include "array_book.h"
+#include "heap_book.h"
+#include "map_book.h"
+#include "reference_book.h"
+#include "workload.h"
 
 static int g_failed = 0;
 static int g_checked = 0;
@@ -73,9 +72,9 @@ static void test_same_price_aggregation() {
     CHECK(!book.get_bbo().has_ask);
 }
 
-// The best price has to move correctly when the best level is emptied. The
-// prices here are chosen so that for implementation C the search has to cross
-// a 64-bit word boundary (50.63 / 50.64) and a summary-word boundary.
+// Best price must move correctly when the best level empties. 50.63/50.64 sit
+// on a 64-bit word boundary in implementation C's bitmap, 90.00 and 99.99 are
+// in different summary words.
 template <class Book>
 static void test_best_moves_on_cancel() {
     Book book;
@@ -102,7 +101,7 @@ static void test_best_moves_on_cancel() {
     CHECK(book.cancel_order(10) && book.cancel_order(20));
     CHECK(bbo_is(book.get_bbo(), false, 0, 0, false, 0, 0));
 
-    // and the best comes back after the side was emptied
+    // best comes back after the side was emptied
     book.add_order(30, Side::Buy, 75.25, 5);
     CHECK(bbo_is(book.get_bbo(), true, 75.25, 5, false, 0, 0));
 }
@@ -118,7 +117,7 @@ static void test_depth() {
     book.add_order(6, Side::Sell, 100.10, 6);
     book.add_order(7, Side::Sell, 100.05, 7);
 
-    // insufficient depth: ask for 10, get the 3 that exist
+    // ask for 10 levels, only 3 exist
     std::vector<Level> bids = book.get_bids(10);
     CHECK(bids.size() == 3);
     if (bids.size() == 3) {
@@ -158,9 +157,8 @@ static void test_invalid_input_is_ignored() {
     CHECK(book.order_count() == 1);
 }
 
-// Random workload against the brute force reference. A narrow band means
-// levels are created and emptied all the time, which stresses the best-price
-// tracking far more than the real benchmark does.
+// Random workload against the brute force reference. A narrow band makes
+// levels appear and disappear constantly, which stresses best-price tracking.
 template <class Book>
 static void test_random_vs_reference(uint32_t seed, size_t n, int band) {
     WorkloadConfig cfg;
@@ -197,19 +195,19 @@ static void test_random_vs_reference(uint32_t seed, size_t n, int band) {
     CHECK(mismatches == 0);
 }
 
-// Implementation C specific: start with a tiny table so that it has to grow
-// several times, and cancel in an order that exercises backward-shift deletion.
+// C only: start with a tiny table so it has to grow, and cancel in an order
+// that exercises backward-shift deletion.
 static void test_array_book_table_growth() {
     ArrayBook book(4);
     const int n = 20000;
-    for (int i = 1; i <= n; ++i) book.add_order(static_cast<uint64_t>(i) * 7919, Side::Buy, 99.00, 1);
-    CHECK(book.order_count() == static_cast<size_t>(n));
+    for (int i = 1; i <= n; ++i) book.add_order((uint64_t)i * 7919, Side::Buy, 99.00, 1);
+    CHECK(book.order_count() == (size_t)n);
     CHECK(book.get_bbo().bid_qty == n);
-    for (int i = n; i >= 1; i -= 2) CHECK(book.cancel_order(static_cast<uint64_t>(i) * 7919));
-    for (int i = 1; i <= n; i += 2) CHECK(book.cancel_order(static_cast<uint64_t>(i) * 7919));
+    for (int i = n; i >= 1; i -= 2) CHECK(book.cancel_order((uint64_t)i * 7919));
+    for (int i = 1; i <= n; i += 2) CHECK(book.cancel_order((uint64_t)i * 7919));
     CHECK(book.order_count() == 0);
     CHECK(!book.get_bbo().has_bid);
-    for (int i = 1; i <= n; ++i) CHECK(book.cancel_order(static_cast<uint64_t>(i) * 7919) == false);
+    for (int i = 1; i <= n; ++i) CHECK(book.cancel_order((uint64_t)i * 7919) == false);
 }
 
 template <class Book>

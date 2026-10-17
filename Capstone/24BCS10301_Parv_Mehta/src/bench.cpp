@@ -1,43 +1,28 @@
-// Single benchmark / correctness program for the three order books.
+// Benchmark and correctness program for the three order books.
 //
 //   ./bench --impl A|B|C|all [--repeat 5] [--ops N] [--seed S] [--timing both|total|perop]
 //   ./bench --verify         [--ops N] [--seed S]
 //
-// The implementation is chosen once, at the top, through a template
-// parameter. Inside the hot loop there are no virtual calls, so what we
-// measure is the data structure and nothing else.
+// The implementation is picked once through a template parameter, so the
+// hot loop has no virtual calls in it.
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <string>
 #include <vector>
 
-#include "array_book.hpp"
-#include "heap_book.hpp"
-#include "map_book.hpp"
-#include "reference_book.hpp"
-#include "workload.hpp"
+#include "array_book.h"
+#include "heap_book.h"
+#include "map_book.h"
+#include "reference_book.h"
+#include "workload.h"
 
 namespace {
 
 using Clock = std::chrono::steady_clock;
-
-// Does nothing. `--impl none` runs the whole benchmark harness against it so
-// the cost of everything that is *not* the order book (workload generation,
-// the loop, the checksum) can be measured and subtracted, e.g. in perf stat.
-class NullBook {
-public:
-    static const char* name() { return "baseline, no order book (harness cost only)"; }
-    void add_order(uint64_t, Side, double, long) {}
-    bool cancel_order(uint64_t) { return false; }
-    BBO get_bbo() const { return BBO{}; }
-    std::vector<Level> get_bids(int = 10) const { return {}; }
-    std::vector<Level> get_asks(int = 10) const { return {}; }
-    size_t order_count() const { return 0; }
-};
 
 enum class Timing { Both, Total, PerOp };
 
@@ -50,11 +35,24 @@ struct Config {
     WorkloadConfig wl;
 };
 
+// An empty book. "--impl none" runs the harness against it so the cost of
+// everything that is not the order book can be measured and subtracted.
+class NullBook {
+public:
+    static const char* name() { return "baseline, no order book (harness cost only)"; }
+    void add_order(uint64_t, Side, double, long) {}
+    bool cancel_order(uint64_t) { return false; }
+    BBO get_bbo() const { return BBO{}; }
+    std::vector<Level> get_bids(int = 10) const { return {}; }
+    std::vector<Level> get_asks(int = 10) const { return {}; }
+    size_t order_count() const { return 0; }
+};
+
 struct OpStats {
     uint64_t count = 0;
     uint64_t total_ns = 0;
-    std::vector<uint32_t> samples;  // one entry per call, only in per-op mode
-    double avg_ns() const { return count ? static_cast<double>(total_ns) / count : 0.0; }
+    std::vector<uint32_t> samples;  // one per call, only in per-op mode
+    double avg_ns() const { return count ? (double)total_ns / count : 0.0; }
 };
 
 struct RunResult {
@@ -65,50 +63,43 @@ struct RunResult {
     size_t live_orders = 0;
 };
 
-inline uint64_t ns_between(Clock::time_point a, Clock::time_point b) {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count());
+uint64_t ns_between(Clock::time_point a, Clock::time_point b) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count();
 }
 
-// Every value the book returns gets folded into this checksum, so the
-// compiler cannot throw any of the work away. It is printed at the end and,
-// as a bonus, must be identical for A, B and C.
-inline void fold(uint64_t& cs, uint64_t v) { cs = (cs ^ v) * 0x100000001b3ull; }
+// Every result the book returns is folded into this checksum so the compiler
+// cannot drop the work. It also has to come out identical for A, B and C.
+void fold(uint64_t& cs, uint64_t v) { cs = (cs ^ v) * 0x100000001b3ull; }
 
-inline void fold_bbo(uint64_t& cs, const BBO& b) {
-    fold(cs, b.has_bid ? static_cast<uint64_t>(to_tick(b.bid_price)) : 0);
-    fold(cs, b.has_bid ? static_cast<uint64_t>(b.bid_qty) : 0);
-    fold(cs, b.has_ask ? static_cast<uint64_t>(to_tick(b.ask_price)) : 0);
-    fold(cs, b.has_ask ? static_cast<uint64_t>(b.ask_qty) : 0);
+void fold_bbo(uint64_t& cs, const BBO& b) {
+    fold(cs, b.has_bid ? (uint64_t)to_tick(b.bid_price) : 0);
+    fold(cs, b.has_bid ? (uint64_t)b.bid_qty : 0);
+    fold(cs, b.has_ask ? (uint64_t)to_tick(b.ask_price) : 0);
+    fold(cs, b.has_ask ? (uint64_t)b.ask_qty : 0);
 }
 
-inline void fold_levels(uint64_t& cs, const std::vector<Level>& v) {
+void fold_levels(uint64_t& cs, const std::vector<Level>& v) {
     fold(cs, v.size());
-    for (const Level& l : v) {
-        fold(cs, static_cast<uint64_t>(to_tick(l.price)));
-        fold(cs, static_cast<uint64_t>(l.qty));
+    for (size_t i = 0; i < v.size(); i++) {
+        fold(cs, (uint64_t)to_tick(v[i].price));
+        fold(cs, (uint64_t)v[i].qty);
     }
 }
 
-template <bool kPerOp, class F>
-inline void timed(OpStats& s, F&& f) {
-    if constexpr (kPerOp) {
-        const auto t0 = Clock::now();
-        f();
-        const auto t1 = Clock::now();
-        const uint64_t ns = ns_between(t0, t1);
-        s.total_ns += ns;
-        s.samples.push_back(static_cast<uint32_t>(ns));
-    } else {
-        f();
-    }
-    ++s.count;
+void record(OpStats& s, Clock::time_point t0) {
+    uint64_t ns = ns_between(t0, Clock::now());
+    s.total_ns += ns;
+    s.samples.push_back((uint32_t)ns);
 }
 
+// kPerOp is a compile time flag: true wraps every call in a timer, false
+// times only the whole loop.
 template <class Book, bool kPerOp>
 RunResult run_workload(const std::vector<Op>& ops) {
     Book book;
     RunResult r;
     uint64_t cs = 0;
+    Clock::time_point t0;
 
     if (kPerOp) {
         r.add.samples.reserve(ops.size());
@@ -117,40 +108,40 @@ RunResult run_workload(const std::vector<Op>& ops) {
         r.depth.samples.reserve(ops.size() / 100 + 1);
     }
 
-    const auto t_start = Clock::now();
-    for (size_t i = 0; i < ops.size(); ++i) {
+    Clock::time_point t_start = Clock::now();
+    for (size_t i = 0; i < ops.size(); i++) {
         const Op& op = ops[i];
-        switch (op.type) {
-        case OpType::Add: {
-            timed<kPerOp>(r.add, [&] { book.add_order(op.id, op.side, to_price(op.tick), op.qty); });
-            break;
-        }
-        case OpType::Cancel: {
-            bool ok = false;
-            timed<kPerOp>(r.cancel, [&] { ok = book.cancel_order(op.id); });
+        if (op.type == OpType::Add) {
+            if (kPerOp) t0 = Clock::now();
+            book.add_order(op.id, op.side, to_price(op.tick), op.qty);
+            if (kPerOp) record(r.add, t0);
+            r.add.count++;
+        } else if (op.type == OpType::Cancel) {
+            if (kPerOp) t0 = Clock::now();
+            bool ok = book.cancel_order(op.id);
+            if (kPerOp) record(r.cancel, t0);
+            r.cancel.count++;
             fold(cs, ok);
-            break;
-        }
-        case OpType::Bbo: {
-            BBO b{};
-            timed<kPerOp>(r.bbo, [&] { b = book.get_bbo(); });
+        } else {
+            if (kPerOp) t0 = Clock::now();
+            BBO b = book.get_bbo();
+            if (kPerOp) record(r.bbo, t0);
+            r.bbo.count++;
             fold_bbo(cs, b);
-            break;
-        }
         }
         if ((i + 1) % 100 == 0) {
-            std::vector<Level> bids, asks;
-            timed<kPerOp>(r.depth, [&] {
-                bids = book.get_bids(10);
-                asks = book.get_asks(10);
-            });
+            if (kPerOp) t0 = Clock::now();
+            std::vector<Level> bids = book.get_bids(10);
+            std::vector<Level> asks = book.get_asks(10);
+            if (kPerOp) record(r.depth, t0);
+            r.depth.count++;
             fold_levels(cs, bids);
             fold_levels(cs, asks);
         }
     }
-    const auto t_end = Clock::now();
+    Clock::time_point t_end = Clock::now();
 
-    r.total_ms = static_cast<double>(ns_between(t_start, t_end)) / 1e6;
+    r.total_ms = ns_between(t_start, t_end) / 1e6;
     r.checksum = cs;
     r.final_bbo = book.get_bbo();
     r.live_orders = book.order_count();
@@ -165,33 +156,34 @@ Percentiles percentiles(std::vector<uint32_t>& v) {
     Percentiles p;
     if (v.empty()) return p;
     std::sort(v.begin(), v.end());
-    auto at = [&](double q) { return v[static_cast<size_t>((v.size() - 1) * q)]; };
-    p.p50 = at(0.50);
-    p.p90 = at(0.90);
-    p.p99 = at(0.99);
-    p.p999 = at(0.999);
-    p.max = v.back();
+    size_t n = v.size() - 1;
+    p.p50 = v[n * 50 / 100];
+    p.p90 = v[n * 90 / 100];
+    p.p99 = v[n * 99 / 100];
+    p.p999 = v[n * 999 / 1000];
+    p.max = v[n];
     return p;
 }
 
 double median(std::vector<double> v) {
     if (v.empty()) return 0.0;
     std::sort(v.begin(), v.end());
-    const size_t n = v.size();
-    return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
+    size_t n = v.size();
+    if (n % 2) return v[n / 2];
+    return 0.5 * (v[n / 2 - 1] + v[n / 2]);
 }
 
-// Cost of the two clock reads that wrap every operation in per-op mode.
+// Cost of the two clock reads that wrap every call in per-op mode.
 double measure_timer_overhead() {
     const int n = 200000;
-    auto t0 = Clock::now();
-    for (int i = 0; i < n; ++i) {
-        auto a = Clock::now();
-        auto b = Clock::now();
+    Clock::time_point t0 = Clock::now();
+    for (int i = 0; i < n; i++) {
+        Clock::time_point a = Clock::now();
+        Clock::time_point b = Clock::now();
         if (b < a) std::abort();
     }
-    auto t1 = Clock::now();
-    return static_cast<double>(ns_between(t0, t1)) / n;
+    Clock::time_point t1 = Clock::now();
+    return (double)ns_between(t0, t1) / n;
 }
 
 void print_bbo(const BBO& b) {
@@ -208,8 +200,8 @@ int run_bench(const Config& cfg, const char* letter, const std::vector<Op>& ops,
     std::printf("workload: %zu ops, seed %u  (adds %zu, cancels %zu, bbo queries %zu, depth(10) queries %zu), live orders at end %zu\n",
                 ops.size(), cfg.wl.seed, ws.adds, ws.cancels, ws.bbos, ops.size() / 100, ws.live_at_end);
 
-    const bool do_total = cfg.timing != Timing::PerOp;
-    const bool do_perop = cfg.timing != Timing::Total;
+    bool do_total = cfg.timing != Timing::PerOp;
+    bool do_perop = cfg.timing != Timing::Total;
     if (do_perop) {
         std::printf("timer overhead: %.1f ns per steady_clock pair (included in the per-op numbers below)\n",
                     measure_timer_overhead());
@@ -219,7 +211,7 @@ int run_bench(const Config& cfg, const char* letter, const std::vector<Op>& ops,
     std::vector<double> m_total, m_add, m_cancel, m_bbo, m_depth;
 
     std::printf("\n  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10\n");
-    for (int r = 0; r < cfg.repeat; ++r) {
+    for (int r = 0; r < cfg.repeat; r++) {
         double total_ms = 0;
         if (do_total) {
             totals.push_back(run_workload<Book, false>(ops));
@@ -243,7 +235,7 @@ int run_bench(const Config& cfg, const char* letter, const std::vector<Op>& ops,
         }
     }
 
-    const double med_total = median(m_total);
+    double med_total = median(m_total);
     if (do_perop) {
         std::printf("median %10.2f  %8.1f  %9.1f  %8.1f  %10.1f\n", med_total,
                     median(m_add), median(m_cancel), median(m_bbo), median(m_depth));
@@ -252,14 +244,13 @@ int run_bench(const Config& cfg, const char* letter, const std::vector<Op>& ops,
                     med_total, ops.size() / med_total / 1e3);
     }
 
-    // Percentiles: take the per-op run whose ns/add is the median one.
+    // Percentiles come from the per-op run whose ns/add is closest to the median.
     Percentiles pa, pc, pb, pd;
     if (do_perop) {
+        double med_add = median(m_add);
         size_t pick = 0;
-        double best = 1e300;
-        const double med_add = median(m_add);
-        for (size_t i = 0; i < m_add.size(); ++i)
-            if (std::abs(m_add[i] - med_add) < best) { best = std::abs(m_add[i] - med_add); pick = i; }
+        for (size_t i = 1; i < m_add.size(); i++)
+            if (std::fabs(m_add[i] - med_add) < std::fabs(m_add[pick] - med_add)) pick = i;
         RunResult& p = perops[pick];
         pa = percentiles(p.add.samples);
         pc = percentiles(p.cancel.samples);
@@ -273,26 +264,28 @@ int run_bench(const Config& cfg, const char* letter, const std::vector<Op>& ops,
         std::printf("  depth10  %7u  %7u  %7u  %7u  %7u\n", pd.p50, pd.p90, pd.p99, pd.p999, pd.max);
     }
 
-    // Final state (identical in every run, so take the first one we have).
+    // Final state is the same in every run; sanity check that and print it once.
     const RunResult& last = do_total ? totals.front() : perops.front();
-    for (const RunResult& x : totals) if (x.checksum != last.checksum) std::printf("WARNING: checksum differs between runs\n");
-    for (const RunResult& x : perops) if (x.checksum != last.checksum) std::printf("WARNING: checksum differs between runs\n");
+    for (size_t i = 0; i < totals.size(); i++)
+        if (totals[i].checksum != last.checksum) std::printf("WARNING: checksum differs between runs\n");
+    for (size_t i = 0; i < perops.size(); i++)
+        if (perops[i].checksum != last.checksum) std::printf("WARNING: checksum differs between runs\n");
 
     std::printf("\n");
     print_bbo(last.final_bbo);
-    std::printf("Checksum: %llu\n\n", static_cast<unsigned long long>(last.checksum));
+    std::printf("Checksum: %llu\n\n", (unsigned long long)last.checksum);
 
     if (cfg.csv) {
         std::printf("CSV,%s,%zu,%u,%.3f,%.1f,%.1f,%.1f,%.1f,%u,%u,%u,%u,%u,%u,%u,%u,%u,%llu\n", letter, ops.size(),
                     cfg.wl.seed, med_total, median(m_add), median(m_cancel), median(m_bbo), median(m_depth),
                     pa.p50, pa.p99, pa.p999, pc.p50, pc.p99, pc.p999, pb.p50, pb.p99, pb.p999,
-                    static_cast<unsigned long long>(last.checksum));
+                    (unsigned long long)last.checksum);
     }
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// --verify: run the same workload through A, B and C side by side.
+// --verify: same workload through A, B and C side by side.
 // ---------------------------------------------------------------------------
 
 template <class Book>
@@ -319,10 +312,10 @@ struct VerifyState {
         if (!fail[k]) { fail[k] = true; why[k] = msg; }
     }
 
-    // Majority vote between the three results for one check.
+    // ab/ac/bc say which pairs agree. Whoever is in the minority is wrong.
     void vote(bool ab, bool ac, bool bc, const char* what, size_t op_index) {
         if (ab && ac) return;
-        const std::string msg = std::string(what) + " differs at op " + std::to_string(op_index);
+        std::string msg = std::string(what) + " differs at op " + std::to_string(op_index);
         if (ab)      flag(2, msg);
         else if (ac) flag(1, msg);
         else if (bc) flag(0, msg);
@@ -336,12 +329,15 @@ int run_verify(const Config& cfg) {
     std::printf("Edge cases (empty book, unknown cancel, double cancel, insufficient depth):\n");
     std::string why;
     bool edge_ok[3];
-    edge_ok[0] = edge_cases_ok<MapBook>(why);   std::printf("  Implementation A: %s%s\n", edge_ok[0] ? "ok" : "FAIL - ", edge_ok[0] ? "" : why.c_str());
-    edge_ok[1] = edge_cases_ok<HeapBook>(why);  std::printf("  Implementation B: %s%s\n", edge_ok[1] ? "ok" : "FAIL - ", edge_ok[1] ? "" : why.c_str());
-    edge_ok[2] = edge_cases_ok<ArrayBook>(why); std::printf("  Implementation C: %s%s\n", edge_ok[2] ? "ok" : "FAIL - ", edge_ok[2] ? "" : why.c_str());
+    edge_ok[0] = edge_cases_ok<MapBook>(why);
+    std::printf("  Implementation A: %s%s\n", edge_ok[0] ? "ok" : "FAIL - ", edge_ok[0] ? "" : why.c_str());
+    edge_ok[1] = edge_cases_ok<HeapBook>(why);
+    std::printf("  Implementation B: %s%s\n", edge_ok[1] ? "ok" : "FAIL - ", edge_ok[1] ? "" : why.c_str());
+    edge_ok[2] = edge_cases_ok<ArrayBook>(why);
+    std::printf("  Implementation C: %s%s\n", edge_ok[2] ? "ok" : "FAIL - ", edge_ok[2] ? "" : why.c_str());
 
     WorkloadStats ws;
-    const std::vector<Op> ops = generate_workload(cfg.wl, &ws);
+    std::vector<Op> ops = generate_workload(cfg.wl, &ws);
     const size_t ref_every = 10000;
     std::printf("\nRandom workload: %zu ops, seed %u (adds %zu, cancels %zu, bbo %zu)\n", ops.size(), cfg.wl.seed,
                 ws.adds, ws.cancels, ws.bbos);
@@ -355,41 +351,40 @@ int run_verify(const Config& cfg) {
     VerifyState vs;
     uint64_t cs[3] = {0, 0, 0};
 
-    for (size_t i = 0; i < ops.size(); ++i) {
+    for (size_t i = 0; i < ops.size(); i++) {
         const Op& op = ops[i];
-        switch (op.type) {
-        case OpType::Add: {
-            const double price = to_price(op.tick);
+        if (op.type == OpType::Add) {
+            double price = to_price(op.tick);
             a.add_order(op.id, op.side, price, op.qty);
             b.add_order(op.id, op.side, price, op.qty);
             c.add_order(op.id, op.side, price, op.qty);
             ref.add_order(op.id, op.side, price, op.qty);
-            break;
-        }
-        case OpType::Cancel: {
-            const bool ra = a.cancel_order(op.id);
-            const bool rb = b.cancel_order(op.id);
-            const bool rc = c.cancel_order(op.id);
-            const bool rr = ref.cancel_order(op.id);
+        } else if (op.type == OpType::Cancel) {
+            bool ra = a.cancel_order(op.id);
+            bool rb = b.cancel_order(op.id);
+            bool rc = c.cancel_order(op.id);
+            bool rr = ref.cancel_order(op.id);
             vs.vote(ra == rb, ra == rc, rb == rc, "cancel_order result", i);
             if (ra != rr) vs.flag(0, "cancel result differs from reference at op " + std::to_string(i));
             if (rb != rr) vs.flag(1, "cancel result differs from reference at op " + std::to_string(i));
             if (rc != rr) vs.flag(2, "cancel result differs from reference at op " + std::to_string(i));
-            fold(cs[0], ra); fold(cs[1], rb); fold(cs[2], rc);
-            break;
-        }
-        case OpType::Bbo:
-            break;  // the BBO is compared after every op anyway
+            fold(cs[0], ra);
+            fold(cs[1], rb);
+            fold(cs[2], rc);
         }
 
-        const BBO ba = a.get_bbo(), bb = b.get_bbo(), bc = c.get_bbo();
+        BBO ba = a.get_bbo(), bb = b.get_bbo(), bc = c.get_bbo();
         vs.vote(same_bbo(ba, bb), same_bbo(ba, bc), same_bbo(bb, bc), "get_bbo", i);
-        if (op.type == OpType::Bbo) { fold_bbo(cs[0], ba); fold_bbo(cs[1], bb); fold_bbo(cs[2], bc); }
+        if (op.type == OpType::Bbo) {
+            fold_bbo(cs[0], ba);
+            fold_bbo(cs[1], bb);
+            fold_bbo(cs[2], bc);
+        }
 
         if ((i + 1) % 100 == 0) {
-            const std::vector<Level> la = a.get_bids(10), lb = b.get_bids(10), lc = c.get_bids(10);
+            std::vector<Level> la = a.get_bids(10), lb = b.get_bids(10), lc = c.get_bids(10);
             vs.vote(same_levels(la, lb), same_levels(la, lc), same_levels(lb, lc), "get_bids(10)", i);
-            const std::vector<Level> ka = a.get_asks(10), kb = b.get_asks(10), kc = c.get_asks(10);
+            std::vector<Level> ka = a.get_asks(10), kb = b.get_asks(10), kc = c.get_asks(10);
             vs.vote(same_levels(ka, kb), same_levels(ka, kc), same_levels(kb, kc), "get_asks(10)", i);
             fold_levels(cs[0], la); fold_levels(cs[0], ka);
             fold_levels(cs[1], lb); fold_levels(cs[1], kb);
@@ -397,9 +392,9 @@ int run_verify(const Config& cfg) {
         }
 
         if ((i + 1) % ref_every == 0 || i + 1 == ops.size()) {
-            const BBO br = ref.get_bbo();
-            const std::vector<Level> rb = ref.get_bids(kLevelsPerSide), ra = ref.get_asks(kLevelsPerSide);
-            const std::string at = " vs reference at op " + std::to_string(i);
+            BBO br = ref.get_bbo();
+            std::vector<Level> rb = ref.get_bids(kLevelsPerSide), ra = ref.get_asks(kLevelsPerSide);
+            std::string at = " vs reference at op " + std::to_string(i);
             if (!same_bbo(ba, br)) vs.flag(0, "get_bbo" + at);
             if (!same_bbo(bb, br)) vs.flag(1, "get_bbo" + at);
             if (!same_bbo(bc, br)) vs.flag(2, "get_bbo" + at);
@@ -414,8 +409,8 @@ int run_verify(const Config& cfg) {
 
     const char* names[3] = {"A", "B", "C"};
     bool all_ok = true;
-    for (int k = 0; k < 3; ++k) {
-        const bool ok = edge_ok[k] && !vs.fail[k];
+    for (int k = 0; k < 3; k++) {
+        bool ok = edge_ok[k] && !vs.fail[k];
         all_ok = all_ok && ok;
         if (ok) std::printf("Implementation %s: PASS\n", names[k]);
         else    std::printf("Implementation %s: FAIL (%s)\n", names[k], vs.fail[k] ? vs.why[k].c_str() : "edge cases");
@@ -423,13 +418,13 @@ int run_verify(const Config& cfg) {
     std::printf("\n");
     if (all_ok && cs[0] == cs[1] && cs[1] == cs[2]) {
         std::printf("All implementations produce identical results.\n");
-        std::printf("Checksum (A = B = C): %llu\n", static_cast<unsigned long long>(cs[0]));
+        std::printf("Checksum (A = B = C): %llu\n", (unsigned long long)cs[0]);
         print_bbo(a.get_bbo());
         return 0;
     }
     std::printf("Implementations DISAGREE.\n");
-    std::printf("Checksums: A=%llu B=%llu C=%llu\n", static_cast<unsigned long long>(cs[0]),
-                static_cast<unsigned long long>(cs[1]), static_cast<unsigned long long>(cs[2]));
+    std::printf("Checksums: A=%llu B=%llu C=%llu\n", (unsigned long long)cs[0],
+                (unsigned long long)cs[1], (unsigned long long)cs[2]);
     return 1;
 }
 
@@ -448,31 +443,50 @@ void usage() {
         "  --csv             also print one machine readable CSV line per implementation\n");
 }
 
+// Returns the value after an option, or nullptr if there is none.
+const char* value_of(int& i, int argc, char** argv) {
+    if (i + 1 >= argc) {
+        std::fprintf(stderr, "%s needs a value\n", argv[i]);
+        return nullptr;
+    }
+    i++;
+    return argv[i];
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     Config cfg;
-    for (int i = 1; i < argc; ++i) {
-        const std::string arg = argv[i];
-        auto next = [&](const char* opt) -> const char* {
-            if (i + 1 >= argc) { std::fprintf(stderr, "%s needs a value\n", opt); std::exit(2); }
-            return argv[++i];
-        };
-        if (arg == "--impl")        cfg.impl = next("--impl");
-        else if (arg == "--verify") cfg.verify = true;
-        else if (arg == "--repeat") cfg.repeat = std::atoi(next("--repeat"));
-        else if (arg == "--ops")    cfg.wl.ops = static_cast<size_t>(std::atoll(next("--ops")));
-        else if (arg == "--seed")   cfg.wl.seed = static_cast<uint32_t>(std::atoll(next("--seed")));
-        else if (arg == "--band")   cfg.wl.band = std::atoi(next("--band"));
-        else if (arg == "--csv")    cfg.csv = true;
-        else if (arg == "--timing") {
-            const std::string m = next("--timing");
-            if (m == "both") cfg.timing = Timing::Both;
-            else if (m == "total") cfg.timing = Timing::Total;
-            else if (m == "perop") cfg.timing = Timing::PerOp;
-            else { std::fprintf(stderr, "unknown timing mode %s\n", m.c_str()); return 2; }
-        } else if (arg == "--help" || arg == "-h") { usage(); return 0; }
-        else { std::fprintf(stderr, "unknown option %s\n", arg.c_str()); usage(); return 2; }
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--verify") {
+            cfg.verify = true;
+        } else if (arg == "--csv") {
+            cfg.csv = true;
+        } else if (arg == "--help" || arg == "-h") {
+            usage();
+            return 0;
+        } else if (arg == "--impl" || arg == "--repeat" || arg == "--ops" || arg == "--seed" ||
+                   arg == "--band" || arg == "--timing") {
+            const char* v = value_of(i, argc, argv);
+            if (!v) return 2;
+            if (arg == "--impl")        cfg.impl = v;
+            else if (arg == "--repeat") cfg.repeat = std::atoi(v);
+            else if (arg == "--ops")    cfg.wl.ops = std::atoll(v);
+            else if (arg == "--seed")   cfg.wl.seed = std::atoll(v);
+            else if (arg == "--band")   cfg.wl.band = std::atoi(v);
+            else {
+                std::string m = v;
+                if (m == "both") cfg.timing = Timing::Both;
+                else if (m == "total") cfg.timing = Timing::Total;
+                else if (m == "perop") cfg.timing = Timing::PerOp;
+                else { std::fprintf(stderr, "unknown timing mode %s\n", v); return 2; }
+            }
+        } else {
+            std::fprintf(stderr, "unknown option %s\n", arg.c_str());
+            usage();
+            return 2;
+        }
     }
     if (cfg.repeat < 1) cfg.repeat = 1;
     if (cfg.wl.band < 1 || cfg.wl.band > kLevelsPerSide) cfg.wl.band = kLevelsPerSide;
@@ -480,19 +494,19 @@ int main(int argc, char** argv) {
     if (cfg.verify) return run_verify(cfg);
 
     if (cfg.impl.empty()) { usage(); return 2; }
-    for (char& ch : cfg.impl) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+    for (size_t i = 0; i < cfg.impl.size(); i++) cfg.impl[i] = std::toupper(cfg.impl[i]);
 
     WorkloadStats ws;
-    const std::vector<Op> ops = generate_workload(cfg.wl, &ws);
+    std::vector<Op> ops = generate_workload(cfg.wl, &ws);
 
-    int rc = 0;
     if (cfg.impl == "NONE") return run_bench<NullBook>(cfg, "none", ops, ws);
-    if (cfg.impl == "A" || cfg.impl == "ALL") rc |= run_bench<MapBook>(cfg, "A", ops, ws);
-    if (cfg.impl == "B" || cfg.impl == "ALL") rc |= run_bench<HeapBook>(cfg, "B", ops, ws);
-    if (cfg.impl == "C" || cfg.impl == "ALL") rc |= run_bench<ArrayBook>(cfg, "C", ops, ws);
     if (cfg.impl != "A" && cfg.impl != "B" && cfg.impl != "C" && cfg.impl != "ALL") {
         std::fprintf(stderr, "unknown implementation '%s' (use A, B, C, all or none)\n", cfg.impl.c_str());
         return 2;
     }
+    int rc = 0;
+    if (cfg.impl == "A" || cfg.impl == "ALL") rc |= run_bench<MapBook>(cfg, "A", ops, ws);
+    if (cfg.impl == "B" || cfg.impl == "ALL") rc |= run_bench<HeapBook>(cfg, "B", ops, ws);
+    if (cfg.impl == "C" || cfg.impl == "ALL") rc |= run_bench<ArrayBook>(cfg, "C", ops, ws);
     return rc;
 }

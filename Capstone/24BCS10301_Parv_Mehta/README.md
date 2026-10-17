@@ -14,12 +14,15 @@ The performance analysis and results table are in [REPORT.md](REPORT.md).
 ## Layout
 
 ```
-include/order_book.hpp    Side, Level, BBO, tick helpers (shared by everything)
-include/map_book.hpp      Implementation A  - std::map + std::unordered_map
-include/heap_book.hpp     Implementation B  - price heap with lazy deletion + hashed levels
-include/array_book.hpp    Implementation C  - flat arrays + two-level bitmap + own hash table
-src/workload.hpp          deterministic random workload generator (mt19937, seed 42)
-src/reference_book.hpp    brute-force oracle used by the correctness checks
+include/order_book.h      Side, Level, BBO, tick helpers (shared by everything)
+include/map_book.h        Implementation A  - std::map + std::unordered_map
+include/heap_book.h       Implementation B  - price heap with lazy deletion + hashed levels
+include/array_book.h      Implementation C  - flat arrays + two-level bitmap + own hash table
+src/map_book.cpp          A, B and C method definitions
+src/heap_book.cpp
+src/array_book.cpp
+src/workload.h            deterministic random workload generator (mt19937, seed 42)
+src/reference_book.h      brute-force oracle used by the correctness checks
 src/bench.cpp             the benchmark / --verify program
 src/tests.cpp             unit tests (edge cases + random cross-check vs the oracle)
 results/                  outputs from my machine: verify.txt, bench_A/B/C.txt
@@ -38,8 +41,8 @@ make                 # builds ./bench and ./tests with -O2
 or a single command
 
 ```
-g++ -std=c++17 -O2 -Iinclude src/bench.cpp -o bench
-g++ -std=c++17 -O2 -Iinclude src/tests.cpp -o tests
+g++ -std=c++17 -O2 -Iinclude src/bench.cpp src/map_book.cpp src/heap_book.cpp src/array_book.cpp -o bench
+g++ -std=c++17 -O2 -Iinclude src/tests.cpp src/map_book.cpp src/heap_book.cpp src/array_book.cpp -o tests
 ```
 
 or CMake
@@ -102,7 +105,7 @@ timed path. By default the workload is run twice per repetition:
    the p50/p90/p99/p99.9/max per operation type.
 
 The per-op numbers include the cost of the two clock reads (printed as "timer
-overhead"; `./bench --impl none` measures it in place at about 11.5 ns per
+overhead"; `./bench --impl none` measures it in place at about 12 ns per
 call on my Mac). On Apple Silicon `steady_clock` only ticks
 every 41.7 ns (24 MHz), which is why the percentiles come out as multiples of
 42. Averages over hundreds of thousands of samples are still fine; individual
@@ -243,14 +246,14 @@ Everything below is from my machine (Apple M5 Pro, macOS, Apple clang 21,
 
 | metric | A (map) | B (heap) | C (arrays) |
 | --- | ---: | ---: | ---: |
-| total time (ms) | 89.3 | 74.4 | 10.2 |
-| ns / add | 71 | 60 | 15 |
-| ns / cancel | 150 | 157 | 14 |
-| ns / get_bbo | 12 | 13 | 12 |
-| ns / get_bids(10)+get_asks(10) | 222 | 1206 | 189 |
-| add p99.9 / max (ns) | 292 / 5,823,584 | 375 / 5,044,792 | 83 / 17,375 |
+| total time (ms) | 73.8 | 65.5 | 10.5 |
+| ns / add | 63 | 41 | 15 |
+| ns / cancel | 105 | 118 | 14 |
+| ns / get_bbo | 12 | 13 | 13 |
+| ns / get_bids(10)+get_asks(10) | 214 | 1147 | 194 |
+| add p99.9 / max (ns) | 167 / 5,253,083 | 333 / 3,341,625 | 84 / 17,625 |
 
-(per-op numbers include the timer overhead, about 11.5 ns on average as measured by `--impl none`; see above)
+(per-op numbers include the timer overhead, about 12 ns on average as measured by `--impl none`; see above)
 
 Correctness (`results/verify.txt`):
 

@@ -2,8 +2,8 @@
 workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
 
   run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
-    1       96.11         -          -         -           -
-median      96.11   (10.4 M ops/s, loop timed as a whole, no per-op timers)
+    1       91.92         -          -         -           -
+median      91.92   (10.9 M ops/s, loop timed as a whole, no per-op timers)
 
 Final BBO:
   Bid: 99.99 x 1608
@@ -14,8 +14,8 @@ Checksum: 12959556190523934793
 workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
 
   run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
-    1       93.83         -          -         -           -
-median      93.83   (10.7 M ops/s, loop timed as a whole, no per-op timers)
+    1       96.34         -          -         -           -
+median      96.34   (10.4 M ops/s, loop timed as a whole, no per-op timers)
 
 Final BBO:
   Bid: 99.99 x 1608
@@ -26,8 +26,8 @@ Checksum: 12959556190523934793
 workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
 
   run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
-    1      124.55         -          -         -           -
-median     124.55   (8.0 M ops/s, loop timed as a whole, no per-op timers)
+    1      103.60         -          -         -           -
+median     103.60   (9.7 M ops/s, loop timed as a whole, no per-op timers)
 
 Final BBO:
   Bid: 99.99 x 1608
@@ -38,8 +38,8 @@ Checksum: 12959556190523934793
 workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
 
   run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
-    1      114.59         -          -         -           -
-median     114.59   (8.7 M ops/s, loop timed as a whole, no per-op timers)
+    1      100.71         -          -         -           -
+median     100.71   (9.9 M ops/s, loop timed as a whole, no per-op timers)
 
 Final BBO:
   Bid: 99.99 x 1608
@@ -50,8 +50,8 @@ Checksum: 12959556190523934793
 workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
 
   run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
-    1      112.36         -          -         -           -
-median     112.36   (8.9 M ops/s, loop timed as a whole, no per-op timers)
+    1       94.57         -          -         -           -
+median      94.57   (10.6 M ops/s, loop timed as a whole, no per-op timers)
 
 Final BBO:
   Bid: 99.99 x 1608
@@ -61,7 +61,7 @@ Checksum: 12959556190523934793
 
  Performance counter stats for 'build-linux/bench --impl A --timing total --ops 1000000' (5 runs):
 
-            143.91 msec task-clock                       #    1.034 CPUs utilized            ( +-  4.89% )
+            118.38 msec task-clock                       #    0.955 CPUs utilized            ( +-  2.05% )
    <not supported>      cycles                                                      
    <not supported>      instructions                                                
    <not supported>      branches                                                    
@@ -69,7 +69,7 @@ Checksum: 12959556190523934793
    <not supported>      cache-misses                                                
    <not supported>      L1-dcache-load-misses                                       
    <not supported>      dTLB-load-misses                                            
-             16345      page-faults                      #  118.853 K/sec                    ( +-  0.00% )
+             13791      page-faults                      #  112.741 K/sec                    ( +-  1.17% )
 
-           0.13924 +- 0.00709 seconds time elapsed  ( +-  5.09% )
+           0.12391 +- 0.00246 seconds time elapsed  ( +-  1.98% )
 

@@ -9,3 +9,4 @@ cachegrind.out.*
 .DS_Store
 *.dSYM/
 perf/results/*.out
+perf/results/perf_record_*.log

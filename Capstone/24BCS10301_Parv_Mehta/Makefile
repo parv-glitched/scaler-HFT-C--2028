@@ -1,23 +1,26 @@
-# Build with: make            (bench + tests)
-#             make verify     (correctness test)
-#             make bench-all  (benchmark A, B and C, 5 runs each)
-# override with: make CXX=clang++
+# make            builds ./bench and ./tests with -O2
+# make test       unit tests
+# make verify     correctness test (all three implementations, same workload)
+# make bench-all  benchmark A, B and C, 5 runs each
+# override the compiler with: make CXX=clang++
 CXX      = g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -g
 CXXFLAGS += $(CXXFLAGS_EXTRA)
 BINDIR   ?= .
 
-HEADERS := include/order_book.hpp include/map_book.hpp include/heap_book.hpp include/array_book.hpp src/workload.hpp
+BOOKS   := src/map_book.cpp src/heap_book.cpp src/array_book.cpp
+HEADERS := include/order_book.h include/map_book.h include/heap_book.h include/array_book.h \
+           src/workload.h src/reference_book.h
 
 all: $(BINDIR)/bench $(BINDIR)/tests
 
-$(BINDIR)/bench: src/bench.cpp $(HEADERS)
+$(BINDIR)/bench: src/bench.cpp $(BOOKS) $(HEADERS)
 	@mkdir -p $(BINDIR)
-	$(CXX) $(CXXFLAGS) -Iinclude src/bench.cpp -o $@
+	$(CXX) $(CXXFLAGS) -Iinclude src/bench.cpp $(BOOKS) -o $@
 
-$(BINDIR)/tests: src/tests.cpp $(HEADERS)
+$(BINDIR)/tests: src/tests.cpp $(BOOKS) $(HEADERS)
 	@mkdir -p $(BINDIR)
-	$(CXX) $(CXXFLAGS) -Iinclude src/tests.cpp -o $@
+	$(CXX) $(CXXFLAGS) -Iinclude src/tests.cpp $(BOOKS) -o $@
 
 test: $(BINDIR)/tests
 	$(BINDIR)/tests
@@ -32,5 +35,6 @@ bench-all: $(BINDIR)/bench
 
 clean:
 	rm -f $(BINDIR)/bench $(BINDIR)/tests
+	rm -rf $(BINDIR)/bench.dSYM $(BINDIR)/tests.dSYM
 
 .PHONY: all test verify bench-all clean
