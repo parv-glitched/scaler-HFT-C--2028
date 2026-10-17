@@ -1,0 +1,43 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 909  of event 'cpu-clock'
+# Event count (approx.): 90900000
+#
+# Overhead  Command  Shared Object          Symbol                                                                                                                                                                             
+# ........  .......  .....................  ...................................................................................................................................................................................
+#
+    24.75%  bench    bench                  [.] ArrayBook::add_order
+    19.47%  bench    bench                  [.] (anonymous namespace)::run_workload<ArrayBook, false>
+    15.40%  bench    bench                  [.] ArrayBook::cancel_order
+     9.02%  bench    bench                  [.] generate_workload
+     3.08%  bench    bench                  [.] std::vector<ArrayBook::OrderTable::Slot, std::allocator<ArrayBook::OrderTable::Slot> >::_M_fill_assign
+     2.97%  bench    bench                  [.] std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()
+     2.42%  bench    [kernel.kallsyms]      [k] memcg1_commit_charge
+     2.20%  bench    libc.so.6              [.] _int_free
+     1.87%  bench    bench                  [.] lround@plt
+     1.65%  bench    bench                  [.] std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::_M_gen_rand
+     1.65%  bench    libm.so.6              [.] __lround
+     1.32%  bench    [kernel.kallsyms]      [k] percpu_counter_add_batch
+     1.21%  bench    libc.so.6              [.] malloc
+     0.99%  bench    [kernel.kallsyms]      [k] el0_da
+     0.99%  bench    [kernel.kallsyms]      [k] folio_batch_move_lru
+     0.99%  bench    [kernel.kallsyms]      [k] folios_put_refs
+     0.77%  bench    bench                  [.] std::vector<Level, std::allocator<Level> >::_M_realloc_insert<Level>
+     0.66%  bench    [kernel.kallsyms]      [k] charge_memcg
+     0.66%  bench    [kernel.kallsyms]      [k] mas_walk
+     0.55%  bench    libc.so.6              [.] __memmove_generic
+     0.55%  bench    libc.so.6              [.] cfree@GLIBC_2.17
+     0.44%  bench    [kernel.kallsyms]      [k] __css_rstat_updated
+     0.44%  bench    [kernel.kallsyms]      [k] __pi_clear_page
+     0.44%  bench    [kernel.kallsyms]      [k] mod_node_state
+     0.44%  bench    [kernel.kallsyms]      [k] try_to_wake_up
+     0.33%  bench    [kernel.kallsyms]      [k] mod_memcg_lruvec_state
+     0.33%  bench    [kernel.kallsyms]      [k] try_charge_memcg
+
+
+#
+# (Tip: To show assembler sample contexts use perf record -b / perf script -F +brstackinsn --xed)
+#

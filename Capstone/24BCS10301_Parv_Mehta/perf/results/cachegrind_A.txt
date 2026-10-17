@@ -1,0 +1,40 @@
+==69== Cachegrind, a cache and branch-prediction profiler
+==69== Copyright (C) 2002-2017, and GNU GPL'd, by Nicholas Nethercote et al.
+==69== Using Valgrind-3.19.0 and LibVEX; rerun with -h for copyright info
+==69== Command: build-linux/bench --impl A --timing total --ops 1000000
+==69== 
+==69== brk segment overflow in thread #1: can't grow to 0x485d000
+==69== (see section Limitations in user manual)
+==69== NOTE: further instances of this message will not be shown
+=== Implementation A: std::map levels + std::unordered_map orders ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1     1277.37         -          -         -           -
+median    1277.37   (0.8 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+==69== 
+==69== I   refs:      683,755,325
+==69== I1  misses:          1,657
+==69== LLi misses:          1,654
+==69== I1  miss rate:        0.00%
+==69== LLi miss rate:        0.00%
+==69== 
+==69== D   refs:      286,322,309  (189,220,100 rd   + 97,102,209 wr)
+==69== D1  misses:      9,935,263  (  8,581,586 rd   +  1,353,677 wr)
+==69== LLd misses:      2,407,328  (  1,192,182 rd   +  1,215,146 wr)
+==69== D1  miss rate:         3.5% (        4.5%     +        1.4%  )
+==69== LLd miss rate:         0.8% (        0.6%     +        1.3%  )
+==69== 
+==69== LL refs:         9,936,920  (  8,583,243 rd   +  1,353,677 wr)
+==69== LL misses:       2,408,982  (  1,193,836 rd   +  1,215,146 wr)
+==69== LL miss rate:          0.2% (        0.1%     +        1.3%  )
+==69== 
+==69== Branches:       96,204,013  ( 90,016,204 cond +  6,187,809 ind)
+==69== Mispredicts:     9,446,215  (  9,445,972 cond +        243 ind)
+==69== Mispred rate:          9.8% (       10.5%     +        0.0%   )

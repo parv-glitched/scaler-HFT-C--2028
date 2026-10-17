@@ -1,0 +1,34 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 5K of event 'cpu-clock'
+# Event count (approx.): 568100000
+#
+# Overhead  Command  Shared Object          Symbol                                                                                                                                                                                                                                                                                                                                                                                                               
+# ........  .......  .....................  .....................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+    40.13%  bench    bench                  [.] MapBook::add_order
+    26.53%  bench    bench                  [.] MapBook::cancel_order
+     5.42%  bench    libc.so.6              [.] _int_free
+     4.81%  bench    bench                  [.] std::_Hashtable<unsigned long, std::pair<unsigned long const, MapBook::Order>, std::allocator<std::pair<unsigned long const, MapBook::Order> >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_rehash
+     4.65%  bench    libc.so.6              [.] malloc_consolidate
+     3.52%  bench    bench                  [.] (anonymous namespace)::run_bench<MapBook>
+     1.73%  bench    libc.so.6              [.] malloc
+     1.64%  bench    bench                  [.] generate_workload
+     1.55%  bench    libc.so.6              [.] _int_malloc
+     1.20%  bench    libc.so.6              [.] cfree@GLIBC_2.17
+     1.04%  bench    libc.so.6              [.] unlink_chunk.constprop.0
+     0.63%  bench    bench                  [.] std::_Hashtable<unsigned long, std::pair<unsigned long const, MapBook::Order>, std::allocator<std::pair<unsigned long const, MapBook::Order> >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::erase
+     0.51%  bench    bench                  [.] std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()
+     0.51%  bench    libm.so.6              [.] __lround
+     0.42%  bench    bench                  [.] lround@plt
+     0.39%  bench    libstdc++.so.6.0.30    [.] malloc@plt
+     0.35%  bench    [kernel.kallsyms]      [k] folio_batch_move_lru
+     0.35%  bench    libstdc++.so.6.0.30    [.] operator new
+
+
+#
+# (Tip: Use --symfs <dir> if your symbol files are in non-standard locations)
+#

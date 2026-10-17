@@ -1,0 +1,75 @@
+=== Implementation B: price heap (lazy delete) + hashed levels, orders inside levels ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1      114.42         -          -         -           -
+median     114.42   (8.7 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+=== Implementation B: price heap (lazy delete) + hashed levels, orders inside levels ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1       78.72         -          -         -           -
+median      78.72   (12.7 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+=== Implementation B: price heap (lazy delete) + hashed levels, orders inside levels ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1       82.31         -          -         -           -
+median      82.31   (12.1 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+=== Implementation B: price heap (lazy delete) + hashed levels, orders inside levels ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1       79.51         -          -         -           -
+median      79.51   (12.6 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+=== Implementation B: price heap (lazy delete) + hashed levels, orders inside levels ===
+workload: 1000000 ops, seed 42  (adds 700829, cancels 199496, bbo queries 99675, depth(10) queries 10000), live orders at end 501333
+
+  run   total(ms)    ns/add  ns/cancel    ns/bbo  ns/depth10
+    1      106.07         -          -         -           -
+median     106.07   (9.4 M ops/s, loop timed as a whole, no per-op timers)
+
+Final BBO:
+  Bid: 99.99 x 1608
+  Ask: 100.01 x 2971
+Checksum: 12959556190523934793
+
+
+ Performance counter stats for 'build-linux/bench --impl B --timing total --ops 1000000' (5 runs):
+
+            148.15 msec task-clock                       #    1.122 CPUs utilized            ( +-  5.17% )
+   <not supported>      cycles                                                      
+   <not supported>      instructions                                                
+   <not supported>      branches                                                    
+   <not supported>      branch-misses                                               
+   <not supported>      cache-misses                                                
+   <not supported>      L1-dcache-load-misses                                       
+   <not supported>      dTLB-load-misses                                            
+             17150      page-faults                      #  131.996 K/sec                    ( +-  0.00% )
+
+           0.13205 +- 0.00761 seconds time elapsed  ( +-  5.76% )
+
